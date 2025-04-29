@@ -14,7 +14,6 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # User class for Flask-Login
-default_user_table = 'users'
 class User(UserMixin):
     def __init__(self, id_, username, password_hash):
         self.id = id_
@@ -131,14 +130,24 @@ def index():
 @login_required
 def dashboard():
     conn, c = get_db_cursor()
+    # Cards
     c.execute('SELECT * FROM cards WHERE user_id = ?', (current_user.id,))
     cards = c.fetchall()
+    # Totals
     c.execute("SELECT SUM(amount) FROM transactions WHERE user_id = ? AND type='income'", (current_user.id,))
     income = c.fetchone()[0] or 0
     c.execute("SELECT SUM(amount) FROM transactions WHERE user_id = ? AND type='expense'", (current_user.id,))
     expenses = c.fetchone()[0] or 0
+    # Recent transactions
+    c.execute(
+        'SELECT id, user_id, type, amount, date FROM transactions '
+        'WHERE user_id = ? ORDER BY date DESC LIMIT 20',
+        (current_user.id,)
+    )
+    transactions = c.fetchall()
     conn.close()
-    return render_template('dashboard.html', cards=cards, income=income, expenses=expenses)
+    return render_template('dashboard.html', cards=cards, income=income,
+                           expenses=expenses, transactions=transactions)
 
 @app.route('/add_card', methods=['GET', 'POST'])
 @login_required
@@ -196,10 +205,10 @@ def edit_card(card_id):
         return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
-        name = request.form['name']
-        limit_amt = float(request.form['limit'])
-        due_date = request.form['due_date']
-        apr = float(request.form['apr'])
+        name       = request.form['name']
+        limit_amt  = float(request.form['limit'])
+        due_date   = request.form['due_date']
+        apr        = float(request.form['apr'])
         c.execute(
             'UPDATE cards SET name=?, limit_amount=?, due_date=?, apr=? WHERE id=? AND user_id=?',
             (name, limit_amt, due_date, apr, card_id, current_user.id)
@@ -221,6 +230,35 @@ def delete_card(card_id):
     conn.close()
     flash('Card deleted.', 'success')
     return redirect(url_for('dashboard'))
+
+@app.route('/edit_transaction/<int:tx_id>', methods=['GET', 'POST'])
+@login_required
+def edit_transaction(tx_id):
+    conn, c = get_db_cursor()
+    c.execute(
+        'SELECT id, type, amount, date FROM transactions WHERE id = ? AND user_id = ?',
+        (tx_id, current_user.id)
+    )
+    tx = c.fetchone()
+    if not tx:
+        conn.close()
+        flash('Transaction not found.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        type_  = request.form['type']
+        amount = float(request.form['amount'])
+        c.execute(
+            'UPDATE transactions SET type=?, amount=? WHERE id=? AND user_id=?',
+            (type_, amount, tx_id, current_user.id)
+        )
+        conn.commit()
+        conn.close()
+        flash('Transaction updated.', 'success')
+        return redirect(url_for('dashboard'))
+
+    conn.close()
+    return render_template('edit_transaction.html', tx=tx)
 
 @app.route('/delete_transaction/<int:tx_id>', methods=['POST'])
 @login_required
