@@ -1,27 +1,28 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Add Card</title>
-</head>
-<body>
-    <nav>
-        {% if current_user.is_authenticated %}
-          Logged in as {{ current_user.username }} |
-          <a href="{{ url_for('logout') }}">Logout</a>
-        {% else %}
-          <a href="{{ url_for('login') }}">Login</a> |
-          <a href="{{ url_for('register') }}">Register</a>
-        {% endif %}
-    </nav>
-    <h1>Add a New Card</h1>
-    <form method="POST">
-        <p>Card Name: <input type="text" name="name"></p>
-        <p>Credit Limit: <input type="number" name="limit" step="0.01"></p>
-        <p>Due Date: <input type="date" name="due_date"></p>
-        <p>APR (%): <input type="number" name="apr" step="0.01"></p>
-        <button type="submit">Add Card</button>
-    </form>
+{% extends "base.html" %}
 
-    <p><a href="/dashboard">⬅️ Back to Dashboard</a></p>
-</body>
-</html>
+{% block title %}Add Card – Credit Monitor{% endblock %}
+
+{% block content %}
+  <h1 class="mb-4">Add a New Card</h1>
+  <form method="POST">
+    <div class="mb-3">
+      <label for="name" class="form-label">Card Name</label>
+      <input type="text" class="form-control bg-dark text-light border-secondary" id="name" name="name" required>
+    </div>
+    <div class="mb-3">
+      <label for="limit" class="form-label">Credit Limit</label>
+      <input type="number" class="form-control bg-dark text-light border-secondary" id="limit" name="limit" step="0.01" required>
+    </div>
+    <div class="mb-3">
+      <label for="due_date" class="form-label">Due Date</label>
+      <input type="date" class="form-control bg-dark text-light border-secondary" id="due_date" name="due_date" required>
+    </div>
+    <div class="mb-3">
+      <label for="apr" class="form-label">APR (%)</label>
+      <input type="number" class="form-control bg-dark text-light border-secondary" id="apr" name="apr" step="0.01" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Add Card</button>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary ms-2">Back to Dashboard</a>
+  </form>
+{% endblock %}
+  

@@ -130,9 +130,8 @@ def get_db_cursor():
 # --- Protected App Routes ---
 @app.route('/')
 def index():
-    if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
-    return redirect(url_for('login'))
+    # Render the spinner page; its meta-refresh will go to /dashboard
+    return render_template('index.html')
 
 @app.route('/dashboard')
 @login_required

@@ -1,9 +1,8 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Dashboard</title>
-</head>
-<body>
+{% extends "base.html" %}
+
+{% block title %}Dashboard – Money Monitor{% endblock %}
+
+{% block content %}
     <nav>
         {% if current_user.is_authenticated %}
           <span>Logged in as {{ current_user.username }}</span>
@@ -63,5 +62,4 @@
     <a href="/add_card">➕ Add New Card</a><br>
     <a href="/add_transaction">➕ Add Income / Expense</a>
 
-</body>
-</html>
+{% endblock %}
