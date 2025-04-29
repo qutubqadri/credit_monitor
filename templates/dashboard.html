@@ -3,7 +3,7 @@
 {% block title %}Dashboard – Credit Monitor{% endblock %}
 
 {% block content %}
-  <h1 class="mb-4">Credit Card Dashboard</h1>
+  <h1 class="mb-4">Your Money Dashboard</h1>
 
   <h2>Cards</h2>
   <table class="table table-dark table-striped">
@@ -23,21 +23,13 @@
     <tbody>
       {% for card in cards %}
       <tr>
-        <!-- card[2] is name -->
         <td>{{ card[2] }}</td>
-        <!-- card[3] is limit_amount -->
         <td>${{ card[3] | round(2) }}</td>
-        <!-- card[6] is current_balance -->
         <td>${{ card[6] | round(2) }}</td>
-        <!-- available = limit_amount - current_balance -->
         <td>${{ (card[3] - card[6]) | round(2) }}</td>
-        <!-- usage % -->
         <td>{{ ((card[6] / card[3]) * 100) | round(1) }}%</td>
-        <!-- card[4] is due_date -->
         <td>{{ card[4] }}</td>
-        <!-- interest estimate = balance * apr/100/365 * 30 -->
         <td>${{ ((card[6] * card[5] / 100 / 365) * 30) | round(2) }}</td>
-        <!-- Update Balance form -->
         <td>
           <form action="{{ url_for('update_balance', card_id=card[0]) }}"
                 method="POST" class="d-flex">
@@ -47,12 +39,9 @@
             <button class="btn btn-sm btn-primary">Update</button>
           </form>
         </td>
-        <!-- Edit / Delete buttons -->
         <td>
-          <a href="{{ url_for('edit_card',    card_id=card[0]) }}"
-             class="btn btn-sm btn-outline-light me-1" title="Edit">
-            ✏️
-          </a>
+          <a href="{{ url_for('edit_card', card_id=card[0]) }}"
+             class="btn btn-sm btn-outline-light me-1" title="Edit">✏️</a>
           <form action="{{ url_for('delete_card', card_id=card[0]) }}"
                 method="POST" class="d-inline">
             <button class="btn btn-sm btn-outline-danger" title="Delete">🗑️</button>
@@ -92,6 +81,35 @@
       </div>
     </div>
   </div>
+
+  <h2 class="mt-5">Recent Transactions</h2>
+  <table class="table table-dark table-striped">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Type</th>
+        <th>Amount</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for tx in transactions %}
+      <tr>
+        <td>{{ tx[4] }}</td>
+        <td>{{ tx[2].capitalize() }}</td>
+        <td>${{ tx[3] | round(2) }}</td>
+        <td>
+          <form action="{{ url_for('delete_transaction', tx_id=tx[0]) }}"
+                method="POST" class="d-inline">
+            <button class="btn btn-sm btn-outline-danger" title="Delete">🗑️</button>
+          </form>
+          <a href="{{ url_for('edit_transaction', tx_id=tx[0]) }}"
+             class="btn btn-sm btn-outline-light ms-1" title="Edit">✏️</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 
   <div class="mt-4">
     <a href="{{ url_for('add_card') }}" class="btn btn-outline-light me-2">➕ Add Card</a>
