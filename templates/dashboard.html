@@ -1,65 +1,87 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard – Money Monitor{% endblock %}
+{% block title %}Dashboard – Credit Monitor{% endblock %}
 
 {% block content %}
-    <nav>
-        {% if current_user.is_authenticated %}
-          <span>Logged in as {{ current_user.username }}</span>
-          <a href="{{ url_for('logout') }}">Logout</a>
-        {% else %}
-          <a href="{{ url_for('login') }}">Login</a> |
-          <a href="{{ url_for('register') }}">Register</a>
-        {% endif %}
-      </nav>
-      <hr>
-      
-    <h1>Credit Card Dashboard</h1>
+  <h1 class="mb-4">Credit Card Dashboard</h1>
 
-    <h2>Cards</h2>
-    <table border="1">
-        <tr>
-            <th>Name</th>
-            <th>Limit</th>
-            <th>Balance</th>
-            <th>Available</th>
-            <th>Usage %</th>
-            <th>Due Date</th>
-            <th>Interest Estimate</th>
-            <th>Update Balance</th>
-        </tr>
-        {% for card in cards %}
-        <tr>
-            <td>{{ card[1] }}</td>
-            <td>${{ "%.2f"|format(card[2]) }}</td>
-            <td>${{ "%.2f"|format(card[5]) }}</td>
-            <td>${{ "%.2f"|format(card[2] - card[5]) }}</td>
-            <td>{{ "%.2f"|format((card[5]/card[2])*100) }}%</td>
-            <td>{{ card[3] }}</td>
-            <td>${{ "%.2f"|format((card[5] * card[4]/100/365)*30) }}</td>
-            <td>
-                <form action="/update_balance/{{ card[0] }}" method="POST">
-                    <input type="text" name="new_balance" placeholder="New Balance">
-                    <button type="submit">Update</button>
-                </form>
-            </td>
-        </tr>
-        {% endfor %}
-    </table>
+  <h2>Cards</h2>
+  <table class="table table-dark table-striped">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Limit</th>
+        <th>Balance</th>
+        <th>Available</th>
+        <th>Usage %</th>
+        <th>Due Date</th>
+        <th>Interest</th>
+        <th>Update</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for card in cards %}
+      <tr>
+        <!-- card[2] is name -->
+        <td>{{ card[2] }}</td>
+        <!-- card[3] is limit_amount -->
+        <td>${{ card[3] | round(2) }}</td>
+        <!-- card[6] is current_balance -->
+        <td>${{ card[6] | round(2) }}</td>
+        <!-- available = limit_amount - current_balance -->
+        <td>${{ (card[3] - card[6]) | round(2) }}</td>
+        <!-- usage % -->
+        <td>{{ ((card[6] / card[3]) * 100) | round(1) }}%</td>
+        <!-- card[4] is due_date -->
+        <td>{{ card[4] }}</td>
+        <!-- interest estimate = balance * apr/100/365 * 30 -->
+        <td>${{ ((card[6] * card[5] / 100 / 365) * 30) | round(2) }}</td>
+        <td>
+          <form action="{{ url_for('update_balance', card_id=card[0]) }}"
+                method="POST" class="d-flex">
+            <input name="new_balance" type="number" step="0.01"
+                   class="form-control form-control-sm me-1"
+                   placeholder="New">
+            <button class="btn btn-sm btn-primary">Update</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 
-    <h2>Income vs Expenses</h2>
-    <p><strong>Total Income:</strong> ${{ "%.2f"|format(income) }}</p>
-    <p><strong>Total Expenses:</strong> ${{ "%.2f"|format(expenses) }}</p>
-    <p><strong>
-        {% if expenses > income %}
-            Warning: Expenses exceed income!
-        {% else %}
-            Good: Expenses within income.
-        {% endif %}
-    </strong></p>
+  <h2 class="mt-5">Income vs Expenses</h2>
+  <div class="row">
+    <div class="col-md-4">
+      <div class="card bg-secondary mb-3">
+        <div class="card-body">
+          <h5 class="card-title">Income</h5>
+          <p class="card-text fs-4">${{ income | round(2) }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card bg-secondary mb-3">
+        <div class="card-body">
+          <h5 class="card-title">Expenses</h5>
+          <p class="card-text fs-4">${{ expenses | round(2) }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card {{ 'bg-danger' if expenses > income else 'bg-success' }} mb-3">
+        <div class="card-body text-white">
+          <h5 class="card-title">Budget Status</h5>
+          <p class="card-text fs-5">
+            {{ 'Over Budget!' if expenses > income else 'Within Budget' }}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
 
-    <br><br>
-    <a href="/add_card">➕ Add New Card</a><br>
-    <a href="/add_transaction">➕ Add Income / Expense</a>
-
+  <div class="mt-4">
+    <a href="{{ url_for('add_card') }}" class="btn btn-outline-light me-2">➕ Add Card</a>
+    <a href="{{ url_for('add_transaction') }}" class="btn btn-outline-light">➕ Add Tx</a>
+  </div>
 {% endblock %}
