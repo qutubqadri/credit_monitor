@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 import sqlite3
-from datetime import datetime, date, timedelta
+from datetime import date, timedelta
 import os
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -14,6 +14,7 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # User class for Flask-Login
+default_user_table = 'users'
 class User(UserMixin):
     def __init__(self, id_, username, password_hash):
         self.id = id_
@@ -31,11 +32,15 @@ def load_user(user_id):
         return User(id_=row[0], username=row[1], password_hash=row[2])
     return None
 
+# --- Helper to connect DB with user context ---
+def get_db_cursor():
+    conn = sqlite3.connect('database.db')
+    return conn, conn.cursor()
+
 # --- Database Initialization & Auto-Seeding ---
 def init_db():
-    conn = sqlite3.connect('database.db')
-    c = conn.cursor()
-    # Users table
+    conn, c = get_db_cursor()
+    # Users
     c.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,7 +48,7 @@ def init_db():
             password_hash TEXT
         )
     ''')
-    # Cards table
+    # Cards
     c.execute('''
         CREATE TABLE IF NOT EXISTS cards (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,7 +61,7 @@ def init_db():
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
     ''')
-    # Transactions table
+    # Transactions
     c.execute('''
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,9 +72,6 @@ def init_db():
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
     ''')
-
-    # Auto-seed dummy data for new users only
-    # (no cards for any user_id yet)
     conn.commit()
     conn.close()
 
@@ -82,8 +84,7 @@ def register():
         username = request.form['username']
         password = request.form['password']
         pw_hash = generate_password_hash(password)
-        conn = sqlite3.connect('database.db')
-        c = conn.cursor()
+        conn, c = get_db_cursor()
         try:
             c.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)',
                       (username, pw_hash))
@@ -104,8 +105,7 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        conn = sqlite3.connect('database.db')
-        c = conn.cursor()
+        conn, c = get_db_cursor()
         c.execute('SELECT id, username, password_hash FROM users WHERE username = ?', (username,))
         row = c.fetchone()
         conn.close()
@@ -122,25 +122,17 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- Helper to connect DB with user context ---
-def get_db_cursor():
-    conn = sqlite3.connect('database.db')
-    return conn, conn.cursor()
-
-# --- Protected App Routes ---
+# --- Application Routes ---
 @app.route('/')
 def index():
-    # Render the spinner page; its meta-refresh will go to /dashboard
     return render_template('index.html')
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
     conn, c = get_db_cursor()
-    # Fetch user's cards
     c.execute('SELECT * FROM cards WHERE user_id = ?', (current_user.id,))
     cards = c.fetchall()
-    # Income/expenses
     c.execute("SELECT SUM(amount) FROM transactions WHERE user_id = ? AND type='income'", (current_user.id,))
     income = c.fetchone()[0] or 0
     c.execute("SELECT SUM(amount) FROM transactions WHERE user_id = ? AND type='expense'", (current_user.id,))
@@ -189,17 +181,14 @@ def add_transaction():
         return redirect(url_for('dashboard'))
     return render_template('add_expense.html')
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
-
 @app.route('/edit_card/<int:card_id>', methods=['GET', 'POST'])
 @login_required
 def edit_card(card_id):
     conn, c = get_db_cursor()
-    # Fetch the card, ensure it belongs to this user
-    c.execute('SELECT id, name, limit_amount, due_date, apr FROM cards '
-              'WHERE id = ? AND user_id = ?', (card_id, current_user.id))
+    c.execute(
+        'SELECT id, name, limit_amount, due_date, apr FROM cards WHERE id = ? AND user_id = ?',
+        (card_id, current_user.id)
+    )
     card = c.fetchone()
     if not card:
         conn.close()
@@ -207,22 +196,20 @@ def edit_card(card_id):
         return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
-        name        = request.form['name']
-        limit_amt   = float(request.form['limit'])
-        due_date    = request.form['due_date']
-        apr         = float(request.form['apr'])
-        c.execute('''
-            UPDATE cards
-            SET name = ?, limit_amount = ?, due_date = ?, apr = ?
-            WHERE id = ? AND user_id = ?
-        ''', (name, limit_amt, due_date, apr, card_id, current_user.id))
+        name = request.form['name']
+        limit_amt = float(request.form['limit'])
+        due_date = request.form['due_date']
+        apr = float(request.form['apr'])
+        c.execute(
+            'UPDATE cards SET name=?, limit_amount=?, due_date=?, apr=? WHERE id=? AND user_id=?',
+            (name, limit_amt, due_date, apr, card_id, current_user.id)
+        )
         conn.commit()
         conn.close()
         flash('Card updated successfully.', 'success')
         return redirect(url_for('dashboard'))
 
     conn.close()
-    # Render the same form as add_card.html but pre-populated
     return render_template('edit_card.html', card=card)
 
 @app.route('/delete_card/<int:card_id>', methods=['POST'])
@@ -245,3 +232,6 @@ def delete_transaction(tx_id):
     flash('Transaction removed.', 'success')
     return redirect(url_for('dashboard'))
 
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
