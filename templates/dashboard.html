@@ -17,6 +17,7 @@
         <th>Due Date</th>
         <th>Interest</th>
         <th>Update</th>
+        <th>Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -36,6 +37,7 @@
         <td>{{ card[4] }}</td>
         <!-- interest estimate = balance * apr/100/365 * 30 -->
         <td>${{ ((card[6] * card[5] / 100 / 365) * 30) | round(2) }}</td>
+        <!-- Update Balance form -->
         <td>
           <form action="{{ url_for('update_balance', card_id=card[0]) }}"
                 method="POST" class="d-flex">
@@ -43,6 +45,17 @@
                    class="form-control form-control-sm me-1"
                    placeholder="New">
             <button class="btn btn-sm btn-primary">Update</button>
+          </form>
+        </td>
+        <!-- Edit / Delete buttons -->
+        <td>
+          <a href="{{ url_for('edit_card',    card_id=card[0]) }}"
+             class="btn btn-sm btn-outline-light me-1" title="Edit">
+            ✏️
+          </a>
+          <form action="{{ url_for('delete_card', card_id=card[0]) }}"
+                method="POST" class="d-inline">
+            <button class="btn btn-sm btn-outline-danger" title="Delete">🗑️</button>
           </form>
         </td>
       </tr>
