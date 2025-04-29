@@ -192,3 +192,56 @@ def add_transaction():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+
+@app.route('/edit_card/<int:card_id>', methods=['GET', 'POST'])
+@login_required
+def edit_card(card_id):
+    conn, c = get_db_cursor()
+    # Fetch the card, ensure it belongs to this user
+    c.execute('SELECT id, name, limit_amount, due_date, apr FROM cards '
+              'WHERE id = ? AND user_id = ?', (card_id, current_user.id))
+    card = c.fetchone()
+    if not card:
+        conn.close()
+        flash('Card not found.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        name        = request.form['name']
+        limit_amt   = float(request.form['limit'])
+        due_date    = request.form['due_date']
+        apr         = float(request.form['apr'])
+        c.execute('''
+            UPDATE cards
+            SET name = ?, limit_amount = ?, due_date = ?, apr = ?
+            WHERE id = ? AND user_id = ?
+        ''', (name, limit_amt, due_date, apr, card_id, current_user.id))
+        conn.commit()
+        conn.close()
+        flash('Card updated successfully.', 'success')
+        return redirect(url_for('dashboard'))
+
+    conn.close()
+    # Render the same form as add_card.html but pre-populated
+    return render_template('edit_card.html', card=card)
+
+@app.route('/delete_card/<int:card_id>', methods=['POST'])
+@login_required
+def delete_card(card_id):
+    conn, c = get_db_cursor()
+    c.execute('DELETE FROM cards WHERE id = ? AND user_id = ?', (card_id, current_user.id))
+    conn.commit()
+    conn.close()
+    flash('Card deleted.', 'success')
+    return redirect(url_for('dashboard'))
+
+@app.route('/delete_transaction/<int:tx_id>', methods=['POST'])
+@login_required
+def delete_transaction(tx_id):
+    conn, c = get_db_cursor()
+    c.execute('DELETE FROM transactions WHERE id = ? AND user_id = ?', (tx_id, current_user.id))
+    conn.commit()
+    conn.close()
+    flash('Transaction removed.', 'success')
+    return redirect(url_for('dashboard'))
+
