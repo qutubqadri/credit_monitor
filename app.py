@@ -60,12 +60,13 @@ def init_db():
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
     ''')
-    # Transactions
+    # Transactions with category
     c.execute('''
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             type TEXT,
+            category TEXT,
             amount REAL,
             date TEXT DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(user_id) REFERENCES users(id)
@@ -140,14 +141,16 @@ def dashboard():
     expenses = c.fetchone()[0] or 0
     # Recent transactions
     c.execute(
-        'SELECT id, user_id, type, amount, date FROM transactions '
+        'SELECT id, user_id, type, category, amount, date FROM transactions '
         'WHERE user_id = ? ORDER BY date DESC LIMIT 20',
         (current_user.id,)
     )
     transactions = c.fetchall()
     conn.close()
-    return render_template('dashboard.html', cards=cards, income=income,
-                           expenses=expenses, transactions=transactions)
+    return render_template(
+        'dashboard.html', cards=cards, income=income,
+        expenses=expenses, transactions=transactions
+    )
 
 @app.route('/add_card', methods=['GET', 'POST'])
 @login_required
@@ -180,11 +183,12 @@ def update_balance(card_id):
 @login_required
 def add_transaction():
     if request.method == 'POST':
-        type_ = request.form['type']
-        amount = float(request.form['amount'])
+        type_    = request.form['type']
+        category = request.form['category']
+        amount   = float(request.form['amount'])
         conn, c = get_db_cursor()
-        c.execute('INSERT INTO transactions (user_id, type, amount) VALUES (?, ?, ?)',
-                  (current_user.id, type_, amount))
+        c.execute('INSERT INTO transactions (user_id, type, category, amount) VALUES (?, ?, ?, ?)',
+                  (current_user.id, type_, category, amount))
         conn.commit()
         conn.close()
         return redirect(url_for('dashboard'))
@@ -205,10 +209,10 @@ def edit_card(card_id):
         return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
-        name       = request.form['name']
-        limit_amt  = float(request.form['limit'])
-        due_date   = request.form['due_date']
-        apr        = float(request.form['apr'])
+        name      = request.form['name']
+        limit_amt = float(request.form['limit'])
+        due_date  = request.form['due_date']
+        apr       = float(request.form['apr'])
         c.execute(
             'UPDATE cards SET name=?, limit_amount=?, due_date=?, apr=? WHERE id=? AND user_id=?',
             (name, limit_amt, due_date, apr, card_id, current_user.id)
@@ -236,7 +240,7 @@ def delete_card(card_id):
 def edit_transaction(tx_id):
     conn, c = get_db_cursor()
     c.execute(
-        'SELECT id, type, amount, date FROM transactions WHERE id = ? AND user_id = ?',
+        'SELECT id, type, category, amount, date FROM transactions WHERE id = ? AND user_id = ?',
         (tx_id, current_user.id)
     )
     tx = c.fetchone()
@@ -246,11 +250,12 @@ def edit_transaction(tx_id):
         return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
-        type_  = request.form['type']
-        amount = float(request.form['amount'])
+        type_    = request.form['type']
+        category = request.form['category']
+        amount   = float(request.form['amount'])
         c.execute(
-            'UPDATE transactions SET type=?, amount=? WHERE id=? AND user_id=?',
-            (type_, amount, tx_id, current_user.id)
+            'UPDATE transactions SET type=?, category=?, amount=? WHERE id=? AND user_id=?',
+            (type_, category, amount, tx_id, current_user.id)
         )
         conn.commit()
         conn.close()
