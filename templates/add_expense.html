@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Add Expense or Income</title>
+</head>
+<body>
+    <h1>Add Expense / Income</h1>
+    <form method="POST">
+        <p>Type: 
+            <select name="type">
+                <option value="income">Income</option>
+                <option value="expense">Expense</option>
+            </select>
+        </p>
+        <p>Amount: <input type="number" name="amount" step="0.01"></p>
+        <button type="submit">Submit</button>
+    </form>
+
+    <p><a href="/dashboard">⬅️ Back to Dashboard</a></p>
+</body>
+</html>

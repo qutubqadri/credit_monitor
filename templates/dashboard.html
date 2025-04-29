@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+</head>
+<body>
+    <h1>Credit Card Dashboard</h1>
+
+    <h2>Cards</h2>
+    <table border="1">
+        <tr>
+            <th>Name</th>
+            <th>Limit</th>
+            <th>Balance</th>
+            <th>Available</th>
+            <th>Usage %</th>
+            <th>Due Date</th>
+            <th>Interest Estimate</th>
+            <th>Update Balance</th>
+        </tr>
+        {% for card in cards %}
+        <tr>
+            <td>{{ card[1] }}</td>
+            <td>${{ "%.2f"|format(card[2]) }}</td>
+            <td>${{ "%.2f"|format(card[5]) }}</td>
+            <td>${{ "%.2f"|format(card[2] - card[5]) }}</td>
+            <td>{{ "%.2f"|format((card[5]/card[2])*100) }}%</td>
+            <td>{{ card[3] }}</td>
+            <td>${{ "%.2f"|format((card[5] * card[4]/100/365)*30) }}</td>
+            <td>
+                <form action="/update_balance/{{ card[0] }}" method="POST">
+                    <input type="text" name="new_balance" placeholder="New Balance">
+                    <button type="submit">Update</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h2>Income vs Expenses</h2>
+    <p><strong>Total Income:</strong> ${{ "%.2f"|format(income) }}</p>
+    <p><strong>Total Expenses:</strong> ${{ "%.2f"|format(expenses) }}</p>
+    <p><strong>
+        {% if expenses > income %}
+            Warning: Expenses exceed income!
+        {% else %}
+            Good: Expenses within income.
+        {% endif %}
+    </strong></p>
+
+    <br><br>
+    <a href="/add_card">➕ Add New Card</a><br>
+    <a href="/add_transaction">➕ Add Income / Expense</a>
+
+</body>
+</html>
