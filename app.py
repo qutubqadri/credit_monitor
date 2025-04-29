@@ -1,133 +1,195 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, flash
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 import sqlite3
+from datetime import datetime, date, timedelta
 import os
-from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'replace-this-with-secure-random')
 
-#initialize the database
+# --- Flask-Login Setup ---
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+# User class for Flask-Login
+class User(UserMixin):
+    def __init__(self, id_, username, password_hash):
+        self.id = id_
+        self.username = username
+        self.password_hash = password_hash
+
+@login_manager.user_loader
+def load_user(user_id):
+    conn = sqlite3.connect('database.db')
+    c = conn.cursor()
+    c.execute('SELECT id, username, password_hash FROM users WHERE id = ?', (user_id,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        return User(id_=row[0], username=row[1], password_hash=row[2])
+    return None
+
+# --- Database Initialization & Auto-Seeding ---
 def init_db():
     conn = sqlite3.connect('database.db')
     c = conn.cursor()
-    # Create tables if they don't exist
+    # Users table
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE,
+            password_hash TEXT
+        )
+    ''')
+    # Cards table
     c.execute('''
         CREATE TABLE IF NOT EXISTS cards (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             name TEXT,
             limit_amount REAL,
             due_date TEXT,
             apr REAL,
-            current_balance REAL DEFAULT 0
+            current_balance REAL DEFAULT 0,
+            FOREIGN KEY(user_id) REFERENCES users(id)
         )
     ''')
+    # Transactions table
     c.execute('''
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             type TEXT,
             amount REAL,
-            date TEXT DEFAULT CURRENT_TIMESTAMP
+            date TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id)
         )
     ''')
 
-    # Check if we've already seeded
-    c.execute('SELECT COUNT(*) FROM cards')
-    if c.fetchone()[0] == 0:
-        # --- Seed dummy credit cards ---
-        from datetime import date, timedelta
-        dummy_cards = [
-            ("Visa Platinum",   5000.00, (date.today() + timedelta(days=10)).isoformat(), 18.99, 1234.56),
-            ("Mastercard Gold", 10000.00,(date.today() + timedelta(days=20)).isoformat(), 22.49,  789.01),
-            ("Amex Green",      3000.00, (date.today() + timedelta(days=5)).isoformat(),  15.99,  345.67),
-        ]
-        for name, limit_amt, due, apr, bal in dummy_cards:
-            c.execute('''
-                INSERT INTO cards (name, limit_amount, due_date, apr, current_balance)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (name, limit_amt, due, apr, bal))
-
-        # --- Seed dummy income/expenses ---
-        dummy_tx = [
-            ("income",  5000.00),
-            ("expense", 1200.50),
-            ("expense",  345.75),
-            ("expense",  678.90),
-            ("income",  2500.00),
-        ]
-        for ttype, amt in dummy_tx:
-            c.execute('INSERT INTO transactions (type, amount) VALUES (?, ?)', (ttype, amt))
-
+    # Auto-seed dummy data for new users only
+    # (no cards for any user_id yet)
     conn.commit()
     conn.close()
 
 init_db()
 
+# --- Authentication Routes ---
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        pw_hash = generate_password_hash(password)
+        conn = sqlite3.connect('database.db')
+        c = conn.cursor()
+        try:
+            c.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)',
+                      (username, pw_hash))
+            conn.commit()
+            user_id = c.lastrowid
+        except sqlite3.IntegrityError:
+            flash('Username already taken', 'danger')
+            conn.close()
+            return redirect(url_for('register'))
+        conn.close()
+        user = User(id_=user_id, username=username, password_hash=pw_hash)
+        login_user(user)
+        return redirect(url_for('dashboard'))
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        conn = sqlite3.connect('database.db')
+        c = conn.cursor()
+        c.execute('SELECT id, username, password_hash FROM users WHERE username = ?', (username,))
+        row = c.fetchone()
+        conn.close()
+        if row and check_password_hash(row[2], password):
+            user = User(id_=row[0], username=row[1], password_hash=row[2])
+            login_user(user)
+            return redirect(url_for('dashboard'))
+        flash('Invalid credentials', 'danger')
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+# --- Helper to connect DB with user context ---
+def get_db_cursor():
+    conn = sqlite3.connect('database.db')
+    return conn, conn.cursor()
+
+# --- Protected App Routes ---
 @app.route('/')
 def index():
-    return redirect(url_for('dashboard'))
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('login'))
 
 @app.route('/dashboard')
+@login_required
 def dashboard():
-    conn = sqlite3.connect('database.db')
-    c = conn.cursor()
-    c.execute('SELECT * FROM cards')
+    conn, c = get_db_cursor()
+    # Fetch user's cards
+    c.execute('SELECT * FROM cards WHERE user_id = ?', (current_user.id,))
     cards = c.fetchall()
-    
-    c.execute("SELECT SUM(amount) FROM transactions WHERE type='income'")
+    # Income/expenses
+    c.execute("SELECT SUM(amount) FROM transactions WHERE user_id = ? AND type='income'", (current_user.id,))
     income = c.fetchone()[0] or 0
-    c.execute("SELECT SUM(amount) FROM transactions WHERE type='expense'")
+    c.execute("SELECT SUM(amount) FROM transactions WHERE user_id = ? AND type='expense'", (current_user.id,))
     expenses = c.fetchone()[0] or 0
     conn.close()
-
     return render_template('dashboard.html', cards=cards, income=income, expenses=expenses)
 
 @app.route('/add_card', methods=['GET', 'POST'])
+@login_required
 def add_card():
     if request.method == 'POST':
         name = request.form['name']
         limit_amount = float(request.form['limit'])
         due_date = request.form['due_date']
         apr = float(request.form['apr'])
-        
-        conn = sqlite3.connect('database.db')
-        c = conn.cursor()
-        c.execute('INSERT INTO cards (name, limit_amount, due_date, apr) VALUES (?, ?, ?, ?)',
-                  (name, limit_amount, due_date, apr))
+        conn, c = get_db_cursor()
+        c.execute('INSERT INTO cards (user_id, name, limit_amount, due_date, apr) VALUES (?, ?, ?, ?, ?)',
+                  (current_user.id, name, limit_amount, due_date, apr))
         conn.commit()
         conn.close()
         return redirect(url_for('dashboard'))
     return render_template('add_card.html')
 
 @app.route('/update_balance/<int:card_id>', methods=['POST'])
+@login_required
 def update_balance(card_id):
     new_balance = float(request.form['new_balance'])
-    conn = sqlite3.connect('database.db')
-    c = conn.cursor()
-    c.execute('UPDATE cards SET current_balance = ? WHERE id = ?', (new_balance, card_id))
+    conn, c = get_db_cursor()
+    c.execute('UPDATE cards SET current_balance = ? WHERE id = ? AND user_id = ?',
+              (new_balance, card_id, current_user.id))
     conn.commit()
     conn.close()
     return redirect(url_for('dashboard'))
 
 @app.route('/add_transaction', methods=['GET', 'POST'])
+@login_required
 def add_transaction():
     if request.method == 'POST':
         type_ = request.form['type']
         amount = float(request.form['amount'])
-        conn = sqlite3.connect('database.db')
-        c = conn.cursor()
-        c.execute('INSERT INTO transactions (type, amount) VALUES (?, ?)', (type_, amount))
+        conn, c = get_db_cursor()
+        c.execute('INSERT INTO transactions (user_id, type, amount) VALUES (?, ?, ?)',
+                  (current_user.id, type_, amount))
         conn.commit()
         conn.close()
         return redirect(url_for('dashboard'))
     return render_template('add_expense.html')
 
 if __name__ == '__main__':
-    import os
-    port = int(os.environ.get("PORT", 5000))
-    # disable the reloader so Render’s health‐check sees the actual bound socket
-    app.run(
-        host='0.0.0.0',
-        port=port,
-        debug=False,
-        use_reloader=False
-    )
-
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
