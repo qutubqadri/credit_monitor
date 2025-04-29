@@ -4,6 +4,15 @@
     <title>Add Expense or Income</title>
 </head>
 <body>
+    <nav>
+        {% if current_user.is_authenticated %}
+          Logged in as {{ current_user.username }} |
+          <a href="{{ url_for('logout') }}">Logout</a>
+        {% else %}
+          <a href="{{ url_for('login') }}">Login</a> |
+          <a href="{{ url_for('register') }}">Register</a>
+        {% endif %}
+    </nav>
     <h1>Add Expense / Income</h1>
     <form method="POST">
         <p>Type: 
