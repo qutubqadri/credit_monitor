@@ -13,6 +13,12 @@
       </select>
     </div>
     <div class="mb-3">
+        <label for="category" class="form-label">Category</label>
+        <input id="category" name="category" type="text"
+               class="form-control bg-dark text-light border-secondary"
+               required value="{{ tx[2] if tx else '' }}">
+    </div>
+    <div class="mb-3">
       <label for="amount" class="form-label">Amount</label>
       <input id="amount" name="amount" type="number" step="0.01"
              class="form-control bg-dark text-light border-secondary" required>
